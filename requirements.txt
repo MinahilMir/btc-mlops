@@ -1,0 +1,11 @@
+flask
+gunicorn
+pandas
+numpy
+scikit-learn
+xgboost
+yfinance
+requests
+pytest
+flake8
+black
