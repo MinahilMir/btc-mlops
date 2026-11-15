@@ -17,7 +17,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  airflow:
+    airflow:
     image: apache/airflow:2.9.3
     depends_on:
       - postgres
@@ -25,7 +25,7 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      _PIP_ADDITIONAL_REQUIREMENTS: yfinance xgboost scikit-learn pandas requests
+      _PIP_ADDITIONAL_REQUIREMENTS: yfinance xgboost==3.4.1 scikit-learn joblib
     ports:
       - "8080:8080"
     volumes:
