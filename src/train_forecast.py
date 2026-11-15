@@ -55,6 +55,8 @@ def train():
 
     os.makedirs(MODEL_DIR, exist_ok=True)
     joblib.dump(model, os.path.join(MODEL_DIR, "model.pkl"))
+    with open(os.path.join(MODEL_DIR, "last_closes.json"), "w") as f:
+        json.dump([float(x) for x in closes[-60:]], f)
     metrics = {
         "MAE": mae,
         "RMSE": rmse,
