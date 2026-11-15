@@ -53,7 +53,7 @@ def passes_threshold():
 
 def register_model():
     for name in ("model.pkl", "metrics.json", "last_closes.json"):
-        shutil.copy(f"{STAGING}/{name}", f"{LIVE}/{name}")
+        shutil.copyfile(f"{STAGING}/{name}", f"{LIVE}/{name}")
 
 
 def reload_api():
