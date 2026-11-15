@@ -1,0 +1,175 @@
+# PIPELINE DEFINITION
+# Name: btc-forecast-pipeline
+# Description: Ingest BTC-USD data, build features, train 7-day forecaster
+components:
+  comp-generate-features:
+    executorLabel: exec-generate-features
+    inputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        features:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-ingest-data:
+    executorLabel: exec-ingest-data
+    outputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        features:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-generate-features:
+      container:
+        args:
+        - '
+
+          import os, sys
+
+          import pandas as pd
+
+          src, out = sys.argv[1], sys.argv[2]
+
+          os.makedirs(os.path.dirname(out), exist_ok=True)
+
+          df = pd.read_csv(src, index_col=0).dropna()
+
+          df["ma7"] = df["Close"].rolling(7).mean()
+
+          df["ma30"] = df["Close"].rolling(30).mean()
+
+          df["volatility7"] = df["Close"].pct_change().rolling(7).std()
+
+          df["target_close_7d"] = df["Close"].shift(-7)
+
+          df = df.dropna(subset=["ma30", "volatility7"])
+
+          df.to_csv(out)
+
+          print("feature rows:", len(df))
+
+          '
+        - '{{$.inputs.artifacts[''raw_data''].path}}'
+        - '{{$.outputs.artifacts[''features''].path}}'
+        command:
+        - sh
+        - -c
+        - pip install -q pandas && python -c "$0" "$@"
+        image: python:3.12-slim
+    exec-ingest-data:
+      container:
+        args:
+        - '
+
+          import os, sys
+
+          import yfinance as yf
+
+          out = sys.argv[1]
+
+          os.makedirs(os.path.dirname(out), exist_ok=True)
+
+          df = yf.download("BTC-USD", start="2018-01-01", auto_adjust=True, progress=False)
+
+          df.columns = df.columns.get_level_values(0)
+
+          df[["Open", "High", "Low", "Close", "Volume"]].dropna().to_csv(out)
+
+          print("rows:", len(df))
+
+          '
+        - '{{$.outputs.artifacts[''raw_data''].path}}'
+        command:
+        - sh
+        - -c
+        - pip install -q yfinance pandas && python -c "$0" "$@"
+        image: python:3.12-slim
+    exec-train-model:
+      container:
+        args:
+        - "\nimport json, os, sys\nimport joblib\nimport numpy as np\nimport pandas\
+          \ as pd\nfrom xgboost import XGBRegressor\nsrc, out = sys.argv[1], sys.argv[2]\n\
+          os.makedirs(out, exist_ok=True)\ndf = pd.read_csv(src, index_col=0).dropna()\n\
+          cols = [\"Close\", \"ma7\", \"ma30\", \"volatility7\"]\ntrain, test = df.iloc[:-7],\
+          \ df.iloc[-7:]\nmodel = XGBRegressor(n_estimators=200, max_depth=4, learning_rate=0.05)\n\
+          model.fit(train[cols], train[\"target_close_7d\"])\npred = model.predict(test[cols])\n\
+          actual = test[\"target_close_7d\"].values\nmae = float(np.mean(np.abs(actual\
+          \ - pred)))\nrmse = float(np.sqrt(np.mean((actual - pred) ** 2)))\nmape\
+          \ = float(np.mean(np.abs((actual - pred) / actual)) * 100)\nmetrics = {\"\
+          MAE\": mae, \"RMSE\": rmse, \"MAPE\": mape}\njoblib.dump(model, os.path.join(out,\
+          \ \"model.pkl\"))\nwith open(os.path.join(out, \"metrics.json\"), \"w\"\
+          ) as f:\n    json.dump(metrics, f)\nprint(metrics)\n"
+        - '{{$.inputs.artifacts[''features''].path}}'
+        - '{{$.outputs.artifacts[''model''].path}}'
+        command:
+        - sh
+        - -c
+        - pip install -q pandas numpy xgboost scikit-learn joblib && python -c "$0"
+          "$@"
+        image: python:3.12-slim
+pipelineInfo:
+  description: Ingest BTC-USD data, build features, train 7-day forecaster
+  name: btc-forecast-pipeline
+root:
+  dag:
+    tasks:
+      generate-features:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-generate-features
+        dependentTasks:
+        - ingest-data
+        inputs:
+          artifacts:
+            raw_data:
+              taskOutputArtifact:
+                outputArtifactKey: raw_data
+                producerTask: ingest-data
+        taskInfo:
+          name: generate-features
+      ingest-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-ingest-data
+        taskInfo:
+          name: ingest-data
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - generate-features
+        inputs:
+          artifacts:
+            features:
+              taskOutputArtifact:
+                outputArtifactKey: features
+                producerTask: generate-features
+        taskInfo:
+          name: train-model
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.18.0
