@@ -78,8 +78,7 @@ def predict():
         else:
             ok = isinstance(history, list) and len(history) >= 30
             if not ok or not all(
-                isinstance(v, (int, float)) and not isinstance(v, bool)
-                for v in history
+                isinstance(v, (int, float)) and not isinstance(v, bool) for v in history
             ):
                 return (
                     jsonify({"error": "history must be a list of 30+ numbers"}),
@@ -111,7 +110,9 @@ def metrics():
 def reload_model():
     try:
         load_model()
-        return jsonify({"status": "reloaded", "model_version": state["metrics"]["model_version"]})
+        return jsonify(
+            {"status": "reloaded", "model_version": state["metrics"]["model_version"]}
+        )
     except Exception as e:
         return jsonify({"error": f"Reload failed: {e}"}), 500
 

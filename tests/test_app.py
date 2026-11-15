@@ -14,7 +14,12 @@ class DummyModel:
 
 def setup_module():
     appmod.state["model"] = DummyModel()
-    appmod.state["metrics"] = {"MAE": 1.0, "RMSE": 2.0, "MAPE": 3.0, "model_version": "test"}
+    appmod.state["metrics"] = {
+        "MAE": 1.0,
+        "RMSE": 2.0,
+        "MAPE": 3.0,
+        "model_version": "test",
+    }
     appmod.state["closes"] = [40000.0 + i for i in range(60)]
 
 
